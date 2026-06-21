@@ -279,6 +279,19 @@ extern uint32_t g_TypingSimulationBaseDelay;      // Base delay in milliseconds
 extern uint32_t g_TypingSimulationDelayPerChar;   // Delay per character in milliseconds
 
 // --------------------------------------------
+// Natural-Language Bot Commands
+// --------------------------------------------
+extern bool     g_BotCommandEnable;
+extern float    g_BotCommandRange;
+extern bool     g_BotCommandLLMFallback;
+extern bool     g_BotCommandAllowHeal;
+extern bool     g_BotCommandAllowGive;
+extern bool     g_BotCommandAllowBuff;
+extern bool     g_BotCommandAllowMove;
+extern uint32_t g_BotCommandMaxGiveQuantity;
+extern bool     g_BotCommandLLMReplies;
+
+// --------------------------------------------
 // Loader Functions
 // --------------------------------------------
 void LoadOllamaChatConfig();

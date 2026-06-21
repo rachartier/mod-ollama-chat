@@ -366,6 +366,74 @@ OllamaChat.TypingSimulationBaseDelay = 1000
 OllamaChat.TypingSimulationDelayPerChar = 250
 
 # --------------------------------------------
+# NATURAL-LANGUAGE BOT COMMANDS
+# --------------------------------------------
+# Lets a player near a bot issue plain-language commands the bot acts on, e.g.
+# "heal me", "give me 5 linen cloth", "give me all your linen cloth", "buff me",
+# "come here", "follow me". Works in the open world and inside dungeons/raids.
+# The player whispers a specific bot, or says it out loud and the nearest bot
+# in range acts.
+
+# OllamaChat.BotCommandEnable
+#     Description: Enable the natural-language bot command feature.
+#     Default:     1 (true)
+OllamaChat.BotCommandEnable = 1
+
+# OllamaChat.BotCommandRange
+#     Description: Max distance (yards) a bot may be from the player to be
+#                  commanded, for both say and whisper.
+#     Default:     30.0
+OllamaChat.BotCommandRange = 30.0
+
+# OllamaChat.BotCommandLLMFallback
+#     Description: When the built-in pattern matcher does not recognize the
+#                  phrasing, ask the Ollama LLM to classify the intent. Adds
+#                  latency but handles freer wording. Only triggers on messages
+#                  that look like a command (whisper to a bot, or a command cue
+#                  word), so normal chatter is not sent to the LLM.
+#     Default:     1 (true)
+OllamaChat.BotCommandLLMFallback = 1
+
+# OllamaChat.BotCommandAllowHeal
+#     Description: Allow the "heal me" action.
+#     Default:     1 (true)
+OllamaChat.BotCommandAllowHeal = 1
+
+# OllamaChat.BotCommandAllowGive
+#     Description: Allow the "give me <item>" action. Items are transferred straight
+#                  into the player's bags (exact counts honoured); the bot only ever
+#                  moves items it actually owns (never created). Supports several
+#                  items at once ("give me 3 linen cloth and all your mana potions"),
+#                  shift-clicked item links, and follow-ups like "give me 5 more".
+#     Default:     1 (true)
+OllamaChat.BotCommandAllowGive = 1
+
+# OllamaChat.BotCommandAllowBuff
+#     Description: Allow the "buff me" action.
+#     Default:     1 (true)
+OllamaChat.BotCommandAllowBuff = 1
+
+# OllamaChat.BotCommandAllowMove
+#     Description: Allow the "come here" and "follow me" actions.
+#     Default:     1 (true)
+OllamaChat.BotCommandAllowMove = 1
+
+# OllamaChat.BotCommandMaxGiveQuantity
+#     Description: Upper cap on how many items a single "give" command may
+#                  transfer. 0 means no extra cap. This only ever lowers the
+#                  amount; it can never let a bot give more than it owns.
+#     Default:     0
+OllamaChat.BotCommandMaxGiveQuantity = 0
+
+# OllamaChat.BotCommandLLMReplies
+#     Description: When a bot acts on a command or answers an inventory question
+#                  (e.g. "do you have mana potions?"), generate the reply with the
+#                  LLM using the bot's personality instead of a fixed line. Adds
+#                  latency. Set to 0 for instant canned replies.
+#     Default:     1 (true)
+OllamaChat.BotCommandLLMReplies = 1
+
+# --------------------------------------------
 # RP PERSONALITIES SYSTEM
 # --------------------------------------------
 

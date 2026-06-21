@@ -70,6 +70,19 @@ bool        g_DebugEnabled                    = false;
 bool        g_DebugShowFullPrompt             = false;
 
 // --------------------------------------------
+// Natural-Language Bot Commands
+// --------------------------------------------
+bool     g_BotCommandEnable         = true;
+float    g_BotCommandRange          = 30.0f;
+bool     g_BotCommandLLMFallback    = true;
+bool     g_BotCommandAllowHeal      = true;
+bool     g_BotCommandAllowGive      = true;
+bool     g_BotCommandAllowBuff      = true;
+bool     g_BotCommandAllowMove      = true;
+uint32_t g_BotCommandMaxGiveQuantity = 0;
+bool     g_BotCommandLLMReplies     = true;
+
+// --------------------------------------------
 // Think Mode Support
 // --------------------------------------------
 bool g_ThinkModeEnableForModule = false;
@@ -498,6 +511,17 @@ void LoadOllamaChatConfig()
     g_EnableTypingSimulation          = sConfigMgr->GetOption<bool>("OllamaChat.EnableTypingSimulation", false);
     g_TypingSimulationBaseDelay       = sConfigMgr->GetOption<uint32_t>("OllamaChat.TypingSimulationBaseDelay", 1000);
     g_TypingSimulationDelayPerChar    = sConfigMgr->GetOption<uint32_t>("OllamaChat.TypingSimulationDelayPerChar", 250);
+
+    // Natural-Language Bot Commands
+    g_BotCommandEnable                = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandEnable", true);
+    g_BotCommandRange                 = sConfigMgr->GetOption<float>("OllamaChat.BotCommandRange", 30.0f);
+    g_BotCommandLLMFallback           = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandLLMFallback", true);
+    g_BotCommandAllowHeal             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowHeal", true);
+    g_BotCommandAllowGive             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowGive", true);
+    g_BotCommandAllowBuff             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowBuff", true);
+    g_BotCommandAllowMove             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowMove", true);
+    g_BotCommandMaxGiveQuantity       = sConfigMgr->GetOption<uint32_t>("OllamaChat.BotCommandMaxGiveQuantity", 0);
+    g_BotCommandLLMReplies            = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandLLMReplies", true);
 
     g_EventTypeDefeated           = sConfigMgr->GetOption<std::string>("OllamaChat.EventTypeDefeated", "");
     g_EventTypeDefeatedPlayer     = sConfigMgr->GetOption<std::string>("OllamaChat.EventTypeDefeatedPlayer", "");

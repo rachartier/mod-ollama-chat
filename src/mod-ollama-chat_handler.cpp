@@ -28,6 +28,7 @@
 #include "mod-ollama-chat_api.h"
 #include "mod-ollama-chat_personality.h"
 #include "mod-ollama-chat_config.h"
+#include "mod-ollama-chat_botcommand.h"
 #include "mod-ollama-chat-utilities.h"
 #include "mod-ollama-chat_sentiment.h"
 #include "mod-ollama-chat_rag.h"
@@ -176,8 +177,13 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
     if (!g_Enable)
         return true;
 
+    // Consumed as a bot command -> suppress the message so playerbots doesn't also
+    // react to it (e.g. opening its own trade window).
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    if (r == BotCommandResult::HandledSuppress) return false;
+    if (r == BotCommandResult::NotHandled)
+        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
     return true;
 }
 
@@ -187,7 +193,10 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    if (r == BotCommandResult::HandledSuppress) return false;
+    if (r == BotCommandResult::NotHandled)
+        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
     return true;
 }
 
@@ -197,7 +206,10 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    if (r == BotCommandResult::HandledSuppress) return false;
+    if (r == BotCommandResult::NotHandled)
+        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
     return true;
 }
 
@@ -207,7 +219,10 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    if (r == BotCommandResult::HandledSuppress) return false;
+    if (r == BotCommandResult::NotHandled)
+        ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
     return true;
 }
 
@@ -241,11 +256,15 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
             player->GetName(), type, receiver ? receiver->GetName() : "null");
     }
 
-    // Process the chat immediately in OnPlayerCanUseChat to prevent double processing
+    // Handle bot commands. A "give" is suppressed (return false) so playerbots
+    // doesn't open its own trade window in response; other commands and normal
+    // chat display as usual.
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    ProcessChat(player, type, lang, msg, sourceLocal, nullptr, receiver);
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, receiver) : BotCommandResult::NotHandled;
+    if (r == BotCommandResult::HandledSuppress) return false;
+    if (r == BotCommandResult::NotHandled)
+        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, receiver);
 
-    // Return false to prevent the message from being processed again in OnPlayerChat
     return true;
 }
 
@@ -824,6 +843,7 @@ void PlayerBotChatHandler::ProcessChat(Player* player, uint32_t /*type*/, uint32
         return;
     }
     if (lang == LANG_ADDON) return;
+
     std::string chanName = (channel != nullptr) ? channel->GetName() : "Unknown";
     uint32_t channelId = (channel != nullptr) ? channel->GetChannelId() : 0;
     std::string receiverName = (receiver != nullptr) ? receiver->GetName() : "None";
