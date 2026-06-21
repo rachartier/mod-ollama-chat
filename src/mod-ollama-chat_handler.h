@@ -24,6 +24,13 @@ ChatChannelSourceLocal GetChannelSourceLocal(uint32_t type);
 void ProcessBotChatMessage(Player* bot, const std::string& msg, ChatChannelSourceLocal sourceLocal, Channel* channel);
 
 void SaveBotConversationHistoryToDB();
+void AppendBotConversation(uint64_t botGuid, uint64_t playerGuid, const std::string& playerMessage, const std::string& botReply);
+
+// Generates and sends a normal in-character whisper reply from the bot to the player,
+// reusing the standard prompt + history path. Used by the command pipeline when an LLM
+// intent turns out to be plain chat rather than an action. No-op if whisper replies are
+// disabled. Records the exchange in the conversation history.
+void OllamaWhisperChatReply(Player* bot, Player* player, const std::string& msg);
 
 class PlayerBotChatHandler : public PlayerScript
 {

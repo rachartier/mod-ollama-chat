@@ -5,7 +5,8 @@
 #include <future>
 #include "mod-ollama-chat_querymanager.h"
 
-std::string QueryOllamaAPI(const std::string& prompt);
+// QueryOllamaAPI is declared in mod-ollama-chat_querymanager.h (included above). Its
+// optional numPredict/temperature overrides are used by the command intent call.
 
 // Checks if an API response is valid (not an error message)
 bool IsValidAPIResponse(const std::string& response);

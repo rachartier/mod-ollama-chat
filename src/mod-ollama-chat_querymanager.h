@@ -1,13 +1,16 @@
 #ifndef MOD_OLLAMA_CHAT_QUERYMANAGER_H
 #define MOD_OLLAMA_CHAT_QUERYMANAGER_H
 
+#include <cstdint>
 #include <string>
 #include <future>
 #include <mutex>
 #include <queue>
 #include <thread>
 
-std::string QueryOllamaAPI(const std::string& prompt);
+// rawMode=true returns the model's text as-is (no chat-style extraction of the text
+// between double quotes) - required for the JSON intent call.
+std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride = 0, float temperatureOverride = -1.0f, bool rawMode = false);
 
 class QueryManager {
 public:

@@ -22,7 +22,7 @@ std::string ExtractTextBetweenDoubleQuotes(const std::string& response)
 }
 
 // Function to perform the API call.
-std::string QueryOllamaAPI(const std::string& prompt)
+std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride, float temperatureOverride, bool rawMode)
 {
     // Initialize our custom HTTP client
     static OllamaHttpClient httpClient;
@@ -54,11 +54,16 @@ std::string QueryOllamaAPI(const std::string& prompt)
     bool hasOptions = false;
 
     // Only include if set (do not send defaults if user did not set them)
-    if (g_OllamaNumPredict > 0) {
-        options["num_predict"] = g_OllamaNumPredict;
+    uint32_t numPredict = numPredictOverride > 0 ? numPredictOverride : g_OllamaNumPredict;
+    if (numPredict > 0) {
+        options["num_predict"] = numPredict;
         hasOptions = true;
     }
-    if (g_OllamaTemperature != 0.8f) {
+    if (temperatureOverride >= 0.0f) {
+        options["temperature"] = temperatureOverride;
+        hasOptions = true;
+    }
+    else if (g_OllamaTemperature != 0.8f) {
         options["temperature"] = g_OllamaTemperature;
         hasOptions = true;
     }
@@ -178,7 +183,9 @@ std::string QueryOllamaAPI(const std::string& prompt)
 
     std::string botReply = extractedResponse.str();
 
-    botReply = ExtractTextBetweenDoubleQuotes(botReply);
+    // Chat replies are expected as quoted text; the JSON intent call needs the raw output.
+    if (!rawMode)
+        botReply = ExtractTextBetweenDoubleQuotes(botReply);
 
     // Check for unclosed think tags
     if (botReply.find("<think>") != std::string::npos || botReply.find("</think>") != std::string::npos)

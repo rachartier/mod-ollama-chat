@@ -18,4 +18,8 @@ enum class BotCommandResult
 // whisperTarget is the receiver when the player whispered a specific bot, else nullptr.
 BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Player* whisperTarget);
 
+// Runs queued bot-command actions on the world thread. Call from a world OnUpdate so
+// LLM-resolved actions never mutate game state on a background thread.
+void PumpBotCommandTasks();
+
 #endif // MOD_OLLAMA_CHAT_BOTCOMMAND_H

@@ -385,15 +385,6 @@ OllamaChat.BotCommandEnable = 1
 #     Default:     30.0
 OllamaChat.BotCommandRange = 30.0
 
-# OllamaChat.BotCommandLLMFallback
-#     Description: When the built-in pattern matcher does not recognize the
-#                  phrasing, ask the Ollama LLM to classify the intent. Adds
-#                  latency but handles freer wording. Only triggers on messages
-#                  that look like a command (whisper to a bot, or a command cue
-#                  word), so normal chatter is not sent to the LLM.
-#     Default:     1 (true)
-OllamaChat.BotCommandLLMFallback = 1
-
 # OllamaChat.BotCommandAllowHeal
 #     Description: Allow the "heal me" action.
 #     Default:     1 (true)

@@ -283,7 +283,6 @@ extern uint32_t g_TypingSimulationDelayPerChar;   // Delay per character in mill
 // --------------------------------------------
 extern bool     g_BotCommandEnable;
 extern float    g_BotCommandRange;
-extern bool     g_BotCommandLLMFallback;
 extern bool     g_BotCommandAllowHeal;
 extern bool     g_BotCommandAllowGive;
 extern bool     g_BotCommandAllowBuff;
@@ -308,6 +307,7 @@ public:
     OllamaChatConfigWorldScript();
     void OnStartup() override;
     void OnShutdown() override;
+    void OnUpdate(uint32 diff) override;
 };
 
 #endif // MOD_OLLAMA_CHAT_CONFIG_H

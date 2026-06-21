@@ -1946,3 +1946,32 @@ std::string GenerateBotPrompt(Player* bot, std::string playerMessage, Player* pl
 
     return prompt;
 }
+
+void OllamaWhisperChatReply(Player* bot, Player* player, const std::string& msg)
+{
+    if (!g_EnableWhisperReplies) return;
+    if (!bot || !player) return;
+
+    std::string prompt = GenerateBotPrompt(bot, msg, player);
+    if (prompt.empty()) return;
+
+    uint64_t botGuid = bot->GetGUID().GetRawValue();
+    uint64_t playerGuid = player->GetGUID().GetRawValue();
+    std::string playerMsg = msg;
+
+    std::thread([botGuid, playerGuid, prompt, playerMsg]() {
+        auto fut = SubmitQuery(prompt);
+        if (!fut.valid()) return;
+        std::string response = fut.get();
+        if (!IsValidAPIResponse(response) || response.empty()) return;
+
+        Player* b = ObjectAccessor::FindPlayer(ObjectGuid(botGuid));
+        Player* p = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+        if (!b || !p) return;
+        PlayerbotAI* ai = PlayerbotsMgr::instance().GetPlayerbotAI(b);
+        if (!ai) return;
+
+        ai->Whisper(response, p->GetName());
+        AppendBotConversation(botGuid, playerGuid, playerMsg, response);
+    }).detach();
+}

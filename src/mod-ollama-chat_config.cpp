@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Log.h"
 #include "mod-ollama-chat_api.h"
+#include "mod-ollama-chat_botcommand.h"
 #include <fmt/core.h>
 #include <sstream>
 #include <fstream>
@@ -74,7 +75,6 @@ bool        g_DebugShowFullPrompt             = false;
 // --------------------------------------------
 bool     g_BotCommandEnable         = true;
 float    g_BotCommandRange          = 30.0f;
-bool     g_BotCommandLLMFallback    = true;
 bool     g_BotCommandAllowHeal      = true;
 bool     g_BotCommandAllowGive      = true;
 bool     g_BotCommandAllowBuff      = true;
@@ -515,7 +515,6 @@ void LoadOllamaChatConfig()
     // Natural-Language Bot Commands
     g_BotCommandEnable                = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandEnable", true);
     g_BotCommandRange                 = sConfigMgr->GetOption<float>("OllamaChat.BotCommandRange", 30.0f);
-    g_BotCommandLLMFallback           = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandLLMFallback", true);
     g_BotCommandAllowHeal             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowHeal", true);
     g_BotCommandAllowGive             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowGive", true);
     g_BotCommandAllowBuff             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowBuff", true);
@@ -757,6 +756,11 @@ void OllamaChatConfigWorldScript::OnStartup()
             LOG_INFO("server.loading", "[Ollama Chat] RAG system initialized successfully");
         }
     }
+}
+
+void OllamaChatConfigWorldScript::OnUpdate(uint32 /*diff*/)
+{
+    PumpBotCommandTasks(); // run LLM-resolved bot actions on the world thread
 }
 
 void OllamaChatConfigWorldScript::OnShutdown()
