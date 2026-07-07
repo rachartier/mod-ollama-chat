@@ -10,7 +10,9 @@
 
 // rawMode=true returns the model's text as-is (no chat-style extraction of the text
 // between double quotes) - required for the JSON intent call.
-std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride = 0, float temperatureOverride = -1.0f, bool rawMode = false);
+// formatJson, when non-empty, is sent as the Ollama "format" field (a JSON schema string)
+// to grammar-constrain the output. Requires Ollama >= 0.5.0.
+std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride = 0, float temperatureOverride = -1.0f, bool rawMode = false, const std::string& formatJson = "");
 
 class QueryManager {
 public:

@@ -22,7 +22,7 @@ std::string ExtractTextBetweenDoubleQuotes(const std::string& response)
 }
 
 // Function to perform the API call.
-std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride, float temperatureOverride, bool rawMode)
+std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverride, float temperatureOverride, bool rawMode, const std::string& formatJson)
 {
     // Initialize our custom HTTP client
     static OllamaHttpClient httpClient;
@@ -135,6 +135,13 @@ std::string QueryOllamaAPI(const std::string& prompt, uint32_t numPredictOverrid
         }
         requestData["think"] = true;
         requestData["hidethinking"] = true;
+    }
+
+    // Grammar-constrain the output to a JSON schema (Ollama "format" field) when requested.
+    if (!formatJson.empty())
+    {
+        try { requestData["format"] = nlohmann::json::parse(formatJson); }
+        catch (...) { /* bad schema: fall back to unconstrained generation */ }
     }
 
     std::string requestDataStr = requestData.dump();

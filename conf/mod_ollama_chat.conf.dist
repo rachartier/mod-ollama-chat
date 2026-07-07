@@ -424,6 +424,22 @@ OllamaChat.BotCommandMaxGiveQuantity = 0
 #     Default:     1 (true)
 OllamaChat.BotCommandLLMReplies = 1
 
+# OllamaChat.BotCommandStructuredOutput
+#     Description: Constrain the command intent call to a JSON schema via Ollama's
+#                  "format" field, so the model returns valid JSON with a valid intent
+#                  (no markdown fences / garbage). REQUIRES Ollama >= 0.5.0. Set to 0 if
+#                  your Ollama is older or the intent call returns empty.
+#     Default:     1 (true)
+OllamaChat.BotCommandStructuredOutput = 1
+
+# OllamaChat.BotCommandIntentSamples
+#     Description: How many times to run the intent classification per command; the most
+#                  common intent wins (majority-vote self-consistency). Higher values
+#                  improve accuracy on small models but multiply the load on your Ollama.
+#                  1 = single call (no voting).
+#     Default:     3
+OllamaChat.BotCommandIntentSamples = 3
+
 # --------------------------------------------
 # RP PERSONALITIES SYSTEM
 # --------------------------------------------

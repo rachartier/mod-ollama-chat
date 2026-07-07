@@ -1,6 +1,7 @@
 #ifndef MOD_OLLAMA_CHAT_BOTCOMMAND_H
 #define MOD_OLLAMA_CHAT_BOTCOMMAND_H
 
+#include <cstdint>
 #include <string>
 
 class Player;
@@ -16,7 +17,7 @@ enum class BotCommandResult
 // Parses a player's natural-language message and, if it is a recognized command
 // (heal/give/buff/come/follow/help/inventory) aimed at a nearby bot, performs it.
 // whisperTarget is the receiver when the player whispered a specific bot, else nullptr.
-BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Player* whisperTarget);
+BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Player* whisperTarget, uint32_t chatType);
 
 // Runs queued bot-command actions on the world thread. Call from a world OnUpdate so
 // LLM-resolved actions never mutate game state on a background thread.

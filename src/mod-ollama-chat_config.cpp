@@ -81,6 +81,8 @@ bool     g_BotCommandAllowBuff      = true;
 bool     g_BotCommandAllowMove      = true;
 uint32_t g_BotCommandMaxGiveQuantity = 0;
 bool     g_BotCommandLLMReplies     = true;
+bool     g_BotCommandStructuredOutput = true;
+uint32_t g_BotCommandIntentSamples  = 3;
 
 // --------------------------------------------
 // Think Mode Support
@@ -521,6 +523,9 @@ void LoadOllamaChatConfig()
     g_BotCommandAllowMove             = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandAllowMove", true);
     g_BotCommandMaxGiveQuantity       = sConfigMgr->GetOption<uint32_t>("OllamaChat.BotCommandMaxGiveQuantity", 0);
     g_BotCommandLLMReplies            = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandLLMReplies", true);
+    g_BotCommandStructuredOutput      = sConfigMgr->GetOption<bool>("OllamaChat.BotCommandStructuredOutput", true);
+    g_BotCommandIntentSamples         = sConfigMgr->GetOption<uint32_t>("OllamaChat.BotCommandIntentSamples", 3);
+    if (g_BotCommandIntentSamples < 1) g_BotCommandIntentSamples = 1;
 
     g_EventTypeDefeated           = sConfigMgr->GetOption<std::string>("OllamaChat.EventTypeDefeated", "");
     g_EventTypeDefeatedPlayer     = sConfigMgr->GetOption<std::string>("OllamaChat.EventTypeDefeatedPlayer", "");

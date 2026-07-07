@@ -5,6 +5,8 @@
 #include "Log.h"
 #include "DatabaseEnv.h"
 #include "Player.h"
+#include "PlayerbotAI.h"
+#include "PlayerbotMgr.h"
 #include <fmt/core.h>
 #include <algorithm>
 #include <mutex>
@@ -99,6 +101,12 @@ float AnalyzeMessageSentiment(const std::string& message)
 void UpdateBotPlayerSentiment(Player* bot, Player* player, const std::string& message)
 {
     if (!g_EnableSentimentTracking || !bot || !player)
+        return;
+
+    // Never analyze a bot's message or track sentiment toward a bot author. Bot chatter
+    // is redirected to the normal chat path only; sentiment is for real players.
+    PlayerbotAI* authorAI = PlayerbotsMgr::instance().GetPlayerbotAI(player);
+    if (authorAI && authorAI->IsBotAI())
         return;
 
     uint64_t botGuid = bot->GetGUID().GetRawValue();

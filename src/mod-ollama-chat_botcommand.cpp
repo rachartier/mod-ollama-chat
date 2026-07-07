@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cctype>
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -121,8 +122,6 @@ namespace
                         f(it);
     }
 
-
-
     // Tokenize a name query into lowercase, de-pluralized words, dropping command
     // and filler words. Lets "give me all your mana potions" match "Minor Mana Potion".
     std::vector<std::string> ItemQueryTokens(const std::string& phrase)
@@ -151,27 +150,17 @@ namespace
         return out;
     }
 
-    // Extracts item entry ids from any WoW item links (shift-clicked items) in the
-    // text, e.g. "...|Hitem:6149:0:...|h[Minor Mana Potion]|h...". Case-insensitive.
-    std::vector<uint32> ExtractItemLinkEntries(const std::string& s)
-    {
-        std::string l = ToLower(s);
-        std::vector<uint32> out;
-        size_t pos = 0;
-        while ((pos = l.find("hitem:", pos)) != std::string::npos)
-        {
-            pos += 6;
-            uint32 id = 0;
-            while (pos < l.size() && std::isdigit((unsigned char)l[pos])) { id = id * 10 + (l[pos] - '0'); ++pos; }
-            if (id) out.push_back(id);
-        }
-        return out;
-    }
-
+    // First WoW item-link entry id in the text (shift-clicked item), e.g.
+    // "...|Hitem:6149:0:...|h[Minor Mana Potion]|h...". 0 if none. Case-insensitive.
     uint32 FirstItemLinkEntry(const std::string& s)
     {
-        std::vector<uint32> e = ExtractItemLinkEntries(s);
-        return e.empty() ? 0 : e.front();
+        std::string l = ToLower(s);
+        size_t pos = l.find("hitem:");
+        if (pos == std::string::npos) return 0;
+        pos += 6;
+        uint32 id = 0;
+        while (pos < l.size() && std::isdigit((unsigned char)l[pos])) { id = id * 10 + (l[pos] - '0'); ++pos; }
+        return id;
     }
 
     // Resolve a name query against the items in the bot's bags. Returns the entry
@@ -207,6 +196,28 @@ namespace
             }
         }
         return best;
+    }
+
+    // Resolve a phrase to an owned bot inventory entry: a shift-clicked item link first
+    // (exact id), else the name matched against the bags. Returns 0 if the bot doesn't
+    // own it; fills outName/outCount when known.
+    uint32 ResolveItem(Player* bot, const std::string& phrase, std::string& outName, uint32& outCount)
+    {
+        if (uint32 linkEntry = FirstItemLinkEntry(phrase))
+        {
+            ItemTemplate const* t = sObjectMgr->GetItemTemplate(linkEntry);
+            outName  = t ? t->Name1 : "that item";
+            outCount = bot->GetItemCount(linkEntry, false);
+            return outCount > 0 ? linkEntry : 0;
+        }
+        return ResolveBotItem(bot, phrase, outName, outCount);
+    }
+
+    bool BotOwnsItem(Player* bot, const std::string& phrase)
+    {
+        std::string n;
+        uint32 c = 0;
+        return ResolveItem(bot, phrase, n, c) != 0;
     }
 
 
@@ -250,52 +261,41 @@ namespace
 
     // --- Action handlers ---------------------------------------------------
 
-    // Best castable healing spell the bot can cast on the player (0 = none).
-    uint32 FindHealSpell(Player* bot, Player* player)
+    // Castable spell the bot can cast on the player whose effect matches wantEffect
+    // (0 = none). requirePositive filters to beneficial spells; bestByLevel picks the
+    // highest-SpellLevel match (for heals) instead of the first.
+    uint32 FindCastable(Player* bot, Player* player, uint32 wantEffect, bool requirePositive, bool bestByLevel)
     {
         PlayerbotAI* ai = BotAI(bot);
         if (!ai) return 0;
-        uint32 bestSpell = 0, bestLevel = 0;
+        uint32 best = 0, bestLevel = 0;
         for (auto const& sp : bot->GetSpellMap())
         {
             uint32 spellId = sp.first;
             SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId);
             if (!info) continue;
             if (info->Attributes & SPELL_ATTR0_PASSIVE) continue;
+            if (requirePositive && !info->IsPositive()) continue;
             if (bot->HasSpellCooldown(spellId)) continue;
-            bool isHeal = false;
+            bool match = false;
             for (int i = 0; i < MAX_SPELL_EFFECTS; ++i)
-                if (info->Effects[i].IsEffect() && info->Effects[i].Effect == SPELL_EFFECT_HEAL)
-                    isHeal = true;
-            if (!isHeal) continue;
+                if (info->Effects[i].IsEffect() && info->Effects[i].Effect == wantEffect) { match = true; break; }
+            if (!match) continue;
             if (!ai->CanCastSpell(spellId, player)) continue;
-            if (info->SpellLevel >= bestLevel) { bestLevel = info->SpellLevel; bestSpell = spellId; }
+            if (!bestByLevel) return spellId;
+            if (info->SpellLevel >= bestLevel) { bestLevel = info->SpellLevel; best = spellId; }
         }
-        return bestSpell;
+        return best;
     }
 
-    // First castable beneficial aura the bot can cast on the player (0 = none).
+    uint32 FindHealSpell(Player* bot, Player* player)
+    {
+        return FindCastable(bot, player, SPELL_EFFECT_HEAL, false, true);
+    }
+
     uint32 FindBuffSpell(Player* bot, Player* player)
     {
-        PlayerbotAI* ai = BotAI(bot);
-        if (!ai) return 0;
-        for (auto const& sp : bot->GetSpellMap())
-        {
-            uint32 spellId = sp.first;
-            SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId);
-            if (!info) continue;
-            if (info->Attributes & SPELL_ATTR0_PASSIVE) continue;
-            if (!info->IsPositive()) continue;
-            if (bot->HasSpellCooldown(spellId)) continue;
-            bool isAura = false;
-            for (int i = 0; i < MAX_SPELL_EFFECTS; ++i)
-                if (info->Effects[i].IsEffect() && info->Effects[i].Effect == SPELL_EFFECT_APPLY_AURA)
-                    isAura = true;
-            if (!isAura) continue;
-            if (!ai->CanCastSpell(spellId, player)) continue;
-            return spellId;
-        }
-        return 0;
+        return FindCastable(bot, player, SPELL_EFFECT_APPLY_AURA, true, false);
     }
 
     void DoHeal(Player* bot, Player* player)
@@ -382,18 +382,7 @@ namespace
     {
         std::string name;
         uint32 count = 0;
-        uint32 entry = 0;
-        if (uint32 linkEntry = FirstItemLinkEntry(query))
-        {
-            ItemTemplate const* t = sObjectMgr->GetItemTemplate(linkEntry);
-            name  = t ? t->Name1 : "that";
-            count = bot->GetItemCount(linkEntry, false);
-            entry = count > 0 ? linkEntry : 0;
-        }
-        else
-        {
-            entry = ResolveBotItem(bot, query, name, count);
-        }
+        uint32 entry = ResolveItem(bot, query, name, count);
 
         if (!entry)
         {
@@ -471,24 +460,18 @@ namespace
         uint32 give = want - noSpace;
         if (give == 0) return 0;
 
+        // Copy the source item's random property (suffix) instead of rolling a new one,
+        // so a suffixed item transfers faithfully. Stackable items have srcProp 0.
+        int32 srcProp = 0;
+        bool foundProp = false;
+        ForEachBotBagItem(bot, [&](Item* it) {
+            if (!foundProp && it->GetEntry() == entry) { srcProp = it->GetItemRandomPropertyId(); foundProp = true; }
+        });
+
         bot->DestroyItemCount(entry, give, true);
-        Item* stored = player->StoreNewItem(dest, entry, true, Item::GenerateItemRandomPropertyId(entry));
+        Item* stored = player->StoreNewItem(dest, entry, true, srcProp);
         if (stored) player->SendNewItem(stored, give, true, false);
         return give;
-    }
-
-    // Resolves a give request to a bot inventory entry: a shift-clicked item link
-    // first (exact id), else the LLM-provided item name matched against the bags.
-    uint32 ResolveGiveEntry(Player* bot, const GiveRequest& req, std::string& outName)
-    {
-        if (uint32 linkEntry = FirstItemLinkEntry(req.item))
-        {
-            ItemTemplate const* t = sObjectMgr->GetItemTemplate(linkEntry);
-            outName = t ? t->Name1 : "that item";
-            return bot->GetItemCount(linkEntry, false) > 0 ? linkEntry : 0;
-        }
-        uint32 have = 0;
-        return ResolveBotItem(bot, req.item, outName, have);
     }
 
     // Gives one or more items straight into the player's bags (direct transfer, no
@@ -503,7 +486,8 @@ namespace
         for (GiveRequest const& req : gives)
         {
             std::string name;
-            uint32 entry = ResolveGiveEntry(bot, req, name);
+            uint32 cnt = 0;
+            uint32 entry = ResolveItem(bot, req.item, name, cnt);
             if (!entry) { missing.push_back(name.empty() ? req.item : name); continue; }
 
             uint32 given = TransferItem(bot, player, entry, req.quantity, req.all);
@@ -551,30 +535,39 @@ namespace
 
     // --- Intent pipeline ---------------------------------------------------
 
-    // Synchronous guard: does the message look like a "give" request? Only used to
-    // suppress it from playerbots (so it doesn't open its own trade window). The real
-    // intent is decided by the LLM.
-    bool LooksLikeGive(const std::string& msgLower)
+    bool ContainsAny(const std::string& s, std::initializer_list<const char*> cues)
     {
-        static const char* cues[] = { "give", "gimme", "trade", "hand over", "share", "hitem:" };
         for (const char* c : cues)
-            if (msgLower.find(c) != std::string::npos) return true;
+            if (s.find(c) != std::string::npos) return true;
         return false;
+    }
+
+    // Synchronous guard: does the message look like an item / give / inventory request
+    // that playerbots would otherwise act on (open its own trade window, dump its
+    // "=== Inventory ===")? Used only to suppress the message from playerbots; the real
+    // intent is still decided by the LLM. Broader than a literal "give" so phrasings like
+    // "I need some health potions" or "do you have any?" are caught. Cost: the player's
+    // own request line is hidden from chat, like "give me X" already is.
+    bool LooksLikeItemRequest(const std::string& msgLower)
+    {
+        return ContainsAny(msgLower, {
+            "give", "gimme", "trade", "hand over", "hand me", "share", "spare", "lend", "hitem:",
+            "inventory", "your bag", "bags", "carrying", "what do you have", "what are you carrying",
+            "do you have", "have any", "got any", "can i have", "can i get",
+            "potion", "bandage", "reagent", "arrow", "bullet", "ammo", "food", "water", "drink"
+        });
     }
 
     // Coarse gate for /say only (whispers always run the LLM): avoids an LLM call on
     // every nearby line. A directed conversation is what whispers are for.
     bool LooksLikePotentialCommand(const std::string& msgLower)
     {
-        static const char* cues[] = {
+        return ContainsAny(msgLower, {
             "heal", "give", "gimme", "buff", "come", "follow", "help", "assist", "need",
             "want", "cast", "trade", "share", "hand over", "water", "food", "mana",
             "drink", "have", "got", "any", "potion", "?", "inventory", "bag", "carry",
             "hitem:"
-        };
-        for (const char* c : cues)
-            if (msgLower.find(c) != std::string::npos) return true;
-        return false;
+        });
     }
 
     // Recent conversation turns (player + bot) for this pair, for the intent prompt.
@@ -606,12 +599,33 @@ namespace
         return out;
     }
 
+    // True if botName appears as a whole word in the already-lowercased message.
+    bool NameMentioned(const std::string& lowerMsg, const std::string& botName)
+    {
+        std::string n = ToLower(botName);
+        size_t pos = 0;
+        while ((pos = lowerMsg.find(n, pos)) != std::string::npos)
+        {
+            bool okStart = pos == 0 || !std::isalnum((unsigned char)lowerMsg[pos - 1]);
+            size_t end = pos + n.size();
+            bool okEnd = end >= lowerMsg.size() || !std::isalnum((unsigned char)lowerMsg[end]);
+            if (okStart && okEnd) return true;
+            pos++;
+        }
+        return false;
+    }
+
     // Picks the bot that should act on the parsed command among the in-range
-    // candidates (nearest first): the nearest one that can actually do it, else the
-    // nearest. So "heal me" near five bots is answered by a healer, not a warrior.
-    Player* RouteBot(const ParsedCommand& cmd, const std::vector<Player*>& bots, Player* player)
+    // candidates (nearest first): a bot the player named by name wins outright (a
+    // directed command goes to that bot even if it can't fulfill it); otherwise the
+    // nearest one that can actually do it, else the nearest. So "heal me" near five
+    // bots is answered by a healer, not a warrior.
+    Player* RouteBot(const ParsedCommand& cmd, const std::vector<Player*>& bots, Player* player, const std::string& msg)
     {
         if (bots.empty()) return nullptr;
+        std::string lowerMsg = ToLower(msg);
+        for (Player* b : bots)
+            if (NameMentioned(lowerMsg, b->GetName())) return b;
         switch (cmd.intent)
         {
             case BotIntent::Heal:
@@ -622,10 +636,10 @@ namespace
                 break;
             case BotIntent::Give:
                 for (Player* b : bots)
-                    for (GiveRequest const& req : cmd.gives) { std::string n; if (ResolveGiveEntry(b, req, n)) return b; }
+                    for (GiveRequest const& req : cmd.gives) if (BotOwnsItem(b, req.item)) return b;
                 break;
             case BotIntent::AskHave:
-                for (Player* b : bots) { std::string n; uint32 c = 0; if (ResolveBotItem(b, cmd.itemName, n, c)) return b; }
+                for (Player* b : bots) if (BotOwnsItem(b, cmd.itemName)) return b;
                 break;
             default: break;
         }
@@ -666,10 +680,53 @@ namespace
         }
     }
 
-    // Single LLM call that interprets the message (intent + items) using the
-    // conversation history, then routes the action to a capable nearby bot, or, for a
-    // whisper with no action, produces a normal chat reply. Replaces all regex parsing.
-    void RunIntent(uint64 playerGuid, std::vector<uint64> botGuids, const std::string& msg, bool whisper)
+    // JSON schema sent as Ollama's "format" so the model is grammar-constrained to a valid
+    // intent enum + item shape (no markdown fences / invalid intents). Requires Ollama >= 0.5.
+    static const char* kIntentSchema =
+        R"({"type":"object","properties":{)"
+        R"("intent":{"type":"string","enum":["heal","give","buff","come","follow","help","askhave","listinventory","none"],)"
+        R"("description":"What the player asks the bot to do. askhave = asking whether the bot has a specific item; listinventory = asking what it carries in general."},)"
+        R"("items":{"type":"array","items":{"type":"object","properties":{)"
+        R"("item":{"type":"string"},"quantity":{"type":"integer"},"all":{"type":"boolean"}},)"
+        R"("required":["item","quantity","all"]}}},"required":["intent","items"]})";
+
+    // Parses one intent LLM response (tolerates surrounding text) into a ParsedCommand.
+    // Returns intent None on any failure.
+    ParsedCommand ParseIntentResponse(const std::string& resp)
+    {
+        ParsedCommand cmd;
+        size_t a = resp.find('{');
+        size_t b = resp.rfind('}');
+        if (a == std::string::npos || b == std::string::npos || b <= a) return cmd;
+        try
+        {
+            nlohmann::json j = nlohmann::json::parse(resp.substr(a, b - a + 1));
+            cmd.intent = IntentFromString(j.value("intent", "none"));
+            if (j.contains("items") && j["items"].is_array())
+            {
+                for (auto const& it : j["items"])
+                {
+                    GiveRequest r;
+                    if (it.contains("item") && it["item"].is_string()) r.item = it["item"].get<std::string>();
+                    if (it.contains("all") && it["all"].is_boolean())   r.all = it["all"].get<bool>();
+                    if (it.contains("quantity") && it["quantity"].is_number())
+                        r.quantity = static_cast<uint32>(it["quantity"].get<double>());
+                    if (r.quantity == 0) { r.all = true; r.quantity = 1; }
+                    if (!r.item.empty()) cmd.gives.push_back(r);
+                }
+            }
+            if (cmd.intent == BotIntent::AskHave && !cmd.gives.empty())
+                cmd.itemName = cmd.gives.front().item;
+        }
+        catch (...) { cmd.intent = BotIntent::None; cmd.gives.clear(); }
+        return cmd;
+    }
+
+    // Interprets the message (intent + items) using the conversation history, sampling the
+    // LLM g_BotCommandIntentSamples times and taking the majority intent, then routes the
+    // action to a capable nearby bot, or, for a whisper with no action, produces a normal
+    // chat reply. Replaces all regex parsing.
+    void RunIntent(uint64 playerGuid, std::vector<uint64> botGuids, const std::string& msg, bool whisper, uint32_t chatType)
     {
         if (botGuids.empty()) return;
 
@@ -681,17 +738,29 @@ namespace
 
         std::string prompt =
             "You interpret a player's message to a World of Warcraft companion bot. "
-            "Reply with ONLY compact JSON, no prose, no markdown.\n"
+            "Decide what the player is asking the bot to do, then reply with ONLY compact JSON, "
+            "no prose, no markdown.\n"
             "Schema: {\"intent\":\"heal|give|buff|come|follow|help|askhave|listinventory|none\","
             "\"items\":[{\"item\":\"<exact item name>\",\"quantity\":<integer>,\"all\":<true|false>}]}\n"
-            "Use \"none\" when it is just conversation, not a request to act. "
-            "\"help\" = come assist/rescue in a fight. \"askhave\" = asking if you have a specific item. "
-            "\"listinventory\" = asking what you carry in general. "
-            "For give/askhave, copy item names EXACTLY from what the bot carries: [" + itemList + "]. "
-            "Use the conversation to resolve references like \"5 more\". "
-            "quantity is a number; all=true means the whole stack.\n"
-            "Example: \"hand me a couple bandages\" -> "
-            "{\"intent\":\"give\",\"items\":[{\"item\":\"Linen Bandage\",\"quantity\":2,\"all\":false}]}\n"
+            "Rules:\n"
+            "- Use \"none\" ONLY when the message is general conversation or banter, not a "
+            "request for the bot to act.\n"
+            "- Asking whether you HAVE an item is \"askhave\" (never \"buff\", \"heal\", or \"give\").\n"
+            "- \"help\" = come assist/rescue in a fight. \"come\" = walk to me. \"follow\" = follow me.\n"
+            "- \"listinventory\" = asking what you carry in general.\n"
+            "- heal, buff, come, follow, help, listinventory take NO items (use []).\n"
+            "- give and askhave name the item(s); copy names EXACTLY from what the bot carries "
+            "when they match: [" + itemList + "].\n"
+            "- Use the conversation to resolve references like \"5 more\" or \"the rest\".\n"
+            "- quantity is a number; all=true means the whole stack.\n"
+            "Examples:\n"
+            "\"heal me please\" -> {\"intent\":\"heal\",\"items\":[]}\n"
+            "\"buff me\" -> {\"intent\":\"buff\",\"items\":[]}\n"
+            "\"do you have any health potions?\" -> {\"intent\":\"askhave\",\"items\":[{\"item\":\"Greater Healing Potion\",\"quantity\":0,\"all\":false}]}\n"
+            "\"what are you carrying?\" -> {\"intent\":\"listinventory\",\"items\":[]}\n"
+            "\"hand me a couple bandages\" -> {\"intent\":\"give\",\"items\":[{\"item\":\"Linen Bandage\",\"quantity\":2,\"all\":false}]}\n"
+            "\"give me 5 more\" (after you gave Minor Mana Potion) -> {\"intent\":\"give\",\"items\":[{\"item\":\"Minor Mana Potion\",\"quantity\":5,\"all\":false}]}\n"
+            "\"lol nice pull\" -> {\"intent\":\"none\",\"items\":[]}\n"
             + (history.empty() ? "" : ("Recent conversation:\n" + history))
             + "Player says: \"" + msg + "\"";
 
@@ -702,38 +771,35 @@ namespace
         // for reliable structure - so it calls QueryOllamaAPI directly with overrides.
         // ponytail: this bypasses the query concurrency limit; route through SubmitQuery
         // if command volume ever overloads Ollama.
-        std::thread([playerGuid, botGuids, msg, whisper, prompt]() {
-            std::string resp;
-            try { resp = QueryOllamaAPI(prompt, 1024, 0.1f, /*rawMode*/ true); } catch (...) { return; }
-            if (g_DebugEnabled)
-                LOG_INFO("server.loading", "[Ollama Chat] Intent raw response: {}", resp);
+        std::thread([playerGuid, botGuids, msg, whisper, prompt, chatType]() {
+            uint32_t samples = g_BotCommandIntentSamples < 1 ? 1 : g_BotCommandIntentSamples;
+            std::string schema = g_BotCommandStructuredOutput ? std::string(kIntentSchema) : std::string();
+            // Near-deterministic on a single shot; add diversity only when actually voting.
+            float temp = samples > 1 ? 0.5f : 0.1f;
 
-            ParsedCommand cmd;
-            size_t a = resp.find('{');
-            size_t b = resp.rfind('}');
-            if (a != std::string::npos && b != std::string::npos && b > a)
+            std::vector<ParsedCommand> votes;
+            for (uint32_t i = 0; i < samples; ++i)
             {
-                try
-                {
-                    nlohmann::json j = nlohmann::json::parse(resp.substr(a, b - a + 1));
-                    cmd.intent = IntentFromString(j.value("intent", "none"));
-                    if (j.contains("items") && j["items"].is_array())
-                    {
-                        for (auto const& it : j["items"])
-                        {
-                            GiveRequest r;
-                            if (it.contains("item") && it["item"].is_string()) r.item = it["item"].get<std::string>();
-                            if (it.contains("all") && it["all"].is_boolean())   r.all = it["all"].get<bool>();
-                            if (it.contains("quantity") && it["quantity"].is_number())
-                                r.quantity = static_cast<uint32>(it["quantity"].get<double>());
-                            if (r.quantity == 0) { r.all = true; r.quantity = 1; }
-                            if (!r.item.empty()) cmd.gives.push_back(r);
-                        }
-                    }
-                    if (cmd.intent == BotIntent::AskHave && !cmd.gives.empty())
-                        cmd.itemName = cmd.gives.front().item;
-                }
-                catch (...) { cmd.intent = BotIntent::None; }
+                std::string resp;
+                try { resp = QueryOllamaAPI(prompt, 1024, temp, /*rawMode*/ true, schema); }
+                catch (...) { continue; }
+                if (g_DebugEnabled)
+                    LOG_INFO("server.loading", "[Ollama Chat] Intent sample {}/{}: {}", i + 1, samples, resp);
+                votes.push_back(ParseIntentResponse(resp));
+            }
+            if (votes.empty()) return;
+
+            // Majority intent; keep the first parse that produced it (for its items).
+            ParsedCommand cmd;
+            {
+                std::map<BotIntent, int> tally;
+                for (auto const& v : votes) tally[v.intent]++;
+                BotIntent best = BotIntent::None;
+                int bestN = -1;
+                for (auto const& v : votes)
+                    if (tally[v.intent] > bestN) { bestN = tally[v.intent]; best = v.intent; }
+                for (auto const& v : votes)
+                    if (v.intent == best) { cmd = v; break; }
             }
 
             if (g_DebugEnabled)
@@ -742,7 +808,7 @@ namespace
 
             // Hand the parsed result back to the world thread for routing + execution,
             // so all game-state access happens on the main thread, never here.
-            EnqueueTask([playerGuid, botGuids, msg, whisper, cmd]() {
+            EnqueueTask([playerGuid, botGuids, msg, whisper, cmd, chatType]() {
                 Player* player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
                 if (!player) return;
 
@@ -761,11 +827,22 @@ namespace
 
                 if (cmd.intent == BotIntent::None)
                 {
-                    if (whisper) OllamaWhisperChatReply(bots.front(), player, msg); // plain chat
+                    if (whisper)
+                        OllamaWhisperChatReply(bots.front(), player, msg); // plain chat
+                    else if (!LooksLikeItemRequest(ToLower(msg)))
+                    {
+                        // A non-whisper line we synchronously claimed (which suppressed the
+                        // normal chatter) turned out to be conversation, not a command - hand
+                        // it back to the chatter so it still gets a reply. Suppressed lines
+                        // were hidden from chat, so skip those.
+                        std::string m = msg;
+                        PlayerBotChatHandler::ProcessChat(player, chatType, LANG_UNIVERSAL, m,
+                                                          GetChannelSourceLocal(chatType), nullptr, nullptr);
+                    }
                     return;
                 }
 
-                Player* target = RouteBot(cmd, bots, player);
+                Player* target = RouteBot(cmd, bots, player, msg);
                 if (!target) return;
                 ExecuteParsed(player, target, cmd);
                 AppendBotConversation(target->GetGUID().GetRawValue(), playerGuid, msg, CommandSummary(cmd));
@@ -773,28 +850,24 @@ namespace
         }).detach();
     }
 
-    // Runs queued bot-command work on the world thread (called from OnUpdate).
-    void DrainTasks()
+}
+
+// Runs queued bot-command work on the world thread (called from OnUpdate).
+void PumpBotCommandTasks()
+{
+    std::queue<std::function<void()>> local;
     {
-        std::queue<std::function<void()>> local;
-        {
-            std::lock_guard<std::mutex> lock(g_taskMutex);
-            std::swap(local, g_taskQueue);
-        }
-        while (!local.empty())
-        {
-            if (local.front()) local.front()();
-            local.pop();
-        }
+        std::lock_guard<std::mutex> lock(g_taskMutex);
+        std::swap(local, g_taskQueue);
+    }
+    while (!local.empty())
+    {
+        if (local.front()) local.front()();
+        local.pop();
     }
 }
 
-void PumpBotCommandTasks()
-{
-    DrainTasks();
-}
-
-BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Player* whisperTarget)
+BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Player* whisperTarget, uint32_t chatType)
 {
     if (!g_BotCommandEnable) return BotCommandResult::NotHandled;
     if (!player || IsBot(player)) return BotCommandResult::NotHandled;
@@ -805,12 +878,6 @@ BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Pla
 
     bool whisperedToBot = whisperTarget && IsBot(whisperTarget);
 
-    // For /say (not a whisper), only engage when the line plausibly is a command, so we
-    // don't run the LLM on every nearby remark. Whispers always go to the LLM (that is
-    // the conversation channel).
-    if (!whisperedToBot && !LooksLikePotentialCommand(lower))
-        return BotCommandResult::NotHandled;
-
     // Candidate bots: the whispered bot, or every commandable bot within range.
     std::vector<Player*> bots;
     if (whisperedToBot)
@@ -819,14 +886,28 @@ BotCommandResult TryHandleBotCommand(Player* player, const std::string& msg, Pla
         bots = GatherCommandableBots(player);
     if (bots.empty()) return BotCommandResult::NotHandled;
 
+    // For /say (not a whisper), only engage when the line plausibly is a command OR names a
+    // candidate bot, so we don't run the LLM on every nearby remark. Addressing a bot by
+    // name is itself a command signal, so it bypasses the cue list. Whispers always go to
+    // the LLM (that is the conversation channel).
+    if (!whisperedToBot)
+    {
+        bool engage = LooksLikePotentialCommand(lower);
+        if (!engage)
+            for (Player* b : bots)
+                if (NameMentioned(lower, b->GetName())) { engage = true; break; }
+        if (!engage) return BotCommandResult::NotHandled;
+    }
+
     std::vector<uint64> guids;
     for (Player* b : bots) guids.push_back(b->GetGUID().GetRawValue());
 
-    RunIntent(player->GetGUID().GetRawValue(), guids, trimmed, whisperedToBot);
+    RunIntent(player->GetGUID().GetRawValue(), guids, trimmed, whisperedToBot, chatType);
 
-    // The parse is async, so suppression is decided by a coarse synchronous guard: a
-    // give-like message is suppressed so playerbots does not open its own trade window.
-    if (LooksLikeGive(lower)) return BotCommandResult::HandledSuppress;
+    // The parse is async, so suppression is decided by a coarse synchronous guard: an
+    // item/give/inventory request is suppressed so playerbots does not open its own trade
+    // window or dump its inventory in response.
+    if (LooksLikeItemRequest(lower)) return BotCommandResult::HandledSuppress;
 
     // Whisper: we own the reply (action or chat) - skip the normal chatter. /say
     // command-like: we acted, skip too.

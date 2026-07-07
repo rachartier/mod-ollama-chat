@@ -289,6 +289,8 @@ extern bool     g_BotCommandAllowBuff;
 extern bool     g_BotCommandAllowMove;
 extern uint32_t g_BotCommandMaxGiveQuantity;
 extern bool     g_BotCommandLLMReplies;
+extern bool     g_BotCommandStructuredOutput;
+extern uint32_t g_BotCommandIntentSamples;
 
 // --------------------------------------------
 // Loader Functions

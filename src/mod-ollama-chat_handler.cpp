@@ -158,6 +158,23 @@ ChatChannelSourceLocal GetChannelSourceLocal(uint32_t type)
     }
 }
 
+// Bot commands are accepted only on these channels (whisper handled in its own hook).
+static bool BotCommandChannelAllowed(uint32_t type)
+{
+    switch (type)
+    {
+        case CHAT_MSG_SAY:
+        case CHAT_MSG_PARTY:
+        case CHAT_MSG_PARTY_LEADER:
+        case CHAT_MSG_RAID:
+        case CHAT_MSG_RAID_LEADER:
+        case CHAT_MSG_RAID_WARNING:
+            return true;
+        default:
+            return false;
+    }
+}
+
 Channel* GetValidChannel(uint32_t teamId, const std::string& channelName, Player* player)
 {
     ChannelMgr* cMgr = ChannelMgr::forTeam(static_cast<TeamId>(teamId));
@@ -180,7 +197,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
     // Consumed as a bot command -> suppress the message so playerbots doesn't also
     // react to it (e.g. opening its own trade window).
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
+                             ? TryHandleBotCommand(player, msg, nullptr, type)
+                             : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
         ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
@@ -193,7 +212,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
+                             ? TryHandleBotCommand(player, msg, nullptr, type)
+                             : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
         ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
@@ -206,7 +227,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
+                             ? TryHandleBotCommand(player, msg, nullptr, type)
+                             : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
         ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
@@ -219,7 +242,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
         return true;
 
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, nullptr) : BotCommandResult::NotHandled;
+    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
+                             ? TryHandleBotCommand(player, msg, nullptr, type)
+                             : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
         ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
@@ -230,6 +255,9 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
 {
     // Only process if our module is enabled
     if (!g_Enable)
+        return true;
+
+    if (lang == LANG_ADDON)
         return true;
 
     if (type == CHAT_MSG_WHISPER)
@@ -260,7 +288,7 @@ bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uin
     // doesn't open its own trade window in response; other commands and normal
     // chat display as usual.
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, receiver) : BotCommandResult::NotHandled;
+    BotCommandResult r = g_BotCommandEnable ? TryHandleBotCommand(player, msg, receiver, type) : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
         ProcessChat(player, type, lang, msg, sourceLocal, nullptr, receiver);
@@ -1972,6 +2000,7 @@ void OllamaWhisperChatReply(Player* bot, Player* player, const std::string& msg)
         if (!ai) return;
 
         ai->Whisper(response, p->GetName());
+        UpdateBotPlayerSentiment(b, p, playerMsg);
         AppendBotConversation(botGuid, playerGuid, playerMsg, response);
     }).detach();
 }
