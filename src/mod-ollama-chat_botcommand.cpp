@@ -213,14 +213,6 @@ namespace
         return ResolveBotItem(bot, phrase, outName, outCount);
     }
 
-    bool BotOwnsItem(Player* bot, const std::string& phrase)
-    {
-        std::string n;
-        uint32 c = 0;
-        return ResolveItem(bot, phrase, n, c) != 0;
-    }
-
-
     // Sends an in-character reply to the player. Uses the LLM (bot personality)
     // when enabled, otherwise the plain fallback line. The LLM call and the
     // resulting whisper run on a detached thread, matching the module's existing
@@ -626,6 +618,8 @@ namespace
         std::string lowerMsg = ToLower(msg);
         for (Player* b : bots)
             if (NameMentioned(lowerMsg, b->GetName())) return b;
+        std::string n;
+        uint32 c = 0;
         switch (cmd.intent)
         {
             case BotIntent::Heal:
@@ -636,10 +630,10 @@ namespace
                 break;
             case BotIntent::Give:
                 for (Player* b : bots)
-                    for (GiveRequest const& req : cmd.gives) if (BotOwnsItem(b, req.item)) return b;
+                    for (GiveRequest const& req : cmd.gives) if (ResolveItem(b, req.item, n, c)) return b;
                 break;
             case BotIntent::AskHave:
-                for (Player* b : bots) if (BotOwnsItem(b, cmd.itemName)) return b;
+                for (Player* b : bots) if (ResolveItem(b, cmd.itemName, n, c)) return b;
                 break;
             default: break;
         }
@@ -772,7 +766,7 @@ namespace
         // ponytail: this bypasses the query concurrency limit; route through SubmitQuery
         // if command volume ever overloads Ollama.
         std::thread([playerGuid, botGuids, msg, whisper, prompt, chatType]() {
-            uint32_t samples = g_BotCommandIntentSamples < 1 ? 1 : g_BotCommandIntentSamples;
+            uint32_t samples = g_BotCommandIntentSamples; // clamped >= 1 at config load
             std::string schema = g_BotCommandStructuredOutput ? std::string(kIntentSchema) : std::string();
             // Near-deterministic on a single shot; add diversity only when actually voting.
             float temp = samples > 1 ? 0.5f : 0.1f;

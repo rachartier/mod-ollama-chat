@@ -189,66 +189,42 @@ Channel* GetValidChannel(uint32_t teamId, const std::string& channelName, Player
     return channel;
 }
 
-bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg)
+// Shared body of the non-whisper OnPlayerCanUseChat overloads. Consumed as a bot
+// command -> suppress the message (return false) so playerbots doesn't also react
+// to it (e.g. opening its own trade window).
+static bool HandleChatHook(Player* player, uint32_t type, uint32_t lang, std::string& msg, Channel* channel)
 {
     if (!g_Enable)
         return true;
 
-    // Consumed as a bot command -> suppress the message so playerbots doesn't also
-    // react to it (e.g. opening its own trade window).
     ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
     BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
                              ? TryHandleBotCommand(player, msg, nullptr, type)
                              : BotCommandResult::NotHandled;
     if (r == BotCommandResult::HandledSuppress) return false;
     if (r == BotCommandResult::NotHandled)
-        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
+        PlayerBotChatHandler::ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
     return true;
+}
+
+bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg)
+{
+    return HandleChatHook(player, type, lang, msg, nullptr);
 }
 
 bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg, Group* /*group*/)
 {
-    if (!g_Enable)
-        return true;
-
-    ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
-                             ? TryHandleBotCommand(player, msg, nullptr, type)
-                             : BotCommandResult::NotHandled;
-    if (r == BotCommandResult::HandledSuppress) return false;
-    if (r == BotCommandResult::NotHandled)
-        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
-    return true;
+    return HandleChatHook(player, type, lang, msg, nullptr);
 }
 
 bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg, Guild* /*guild*/)
 {
-    if (!g_Enable)
-        return true;
-
-    ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
-                             ? TryHandleBotCommand(player, msg, nullptr, type)
-                             : BotCommandResult::NotHandled;
-    if (r == BotCommandResult::HandledSuppress) return false;
-    if (r == BotCommandResult::NotHandled)
-        ProcessChat(player, type, lang, msg, sourceLocal, nullptr, nullptr);
-    return true;
+    return HandleChatHook(player, type, lang, msg, nullptr);
 }
 
 bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg, Channel* channel)
 {
-    if (!g_Enable)
-        return true;
-
-    ChatChannelSourceLocal sourceLocal = GetChannelSourceLocal(type);
-    BotCommandResult r = (g_BotCommandEnable && lang != LANG_ADDON && BotCommandChannelAllowed(type))
-                             ? TryHandleBotCommand(player, msg, nullptr, type)
-                             : BotCommandResult::NotHandled;
-    if (r == BotCommandResult::HandledSuppress) return false;
-    if (r == BotCommandResult::NotHandled)
-        ProcessChat(player, type, lang, msg, sourceLocal, channel, nullptr);
-    return true;
+    return HandleChatHook(player, type, lang, msg, channel);
 }
 
 bool PlayerBotChatHandler::OnPlayerCanUseChat(Player* player, uint32_t type, uint32_t lang, std::string& msg, Player* receiver)

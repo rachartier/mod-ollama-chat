@@ -434,11 +434,11 @@ OllamaChat.BotCommandStructuredOutput = 1
 
 # OllamaChat.BotCommandIntentSamples
 #     Description: How many times to run the intent classification per command; the most
-#                  common intent wins (majority-vote self-consistency). Higher values
-#                  improve accuracy on small models but multiply the load on your Ollama.
-#                  1 = single call (no voting).
-#     Default:     3
-OllamaChat.BotCommandIntentSamples = 3
+#                  common intent wins (majority-vote self-consistency). Structured output
+#                  already guarantees a valid intent, so raise this (e.g. 3) only if a
+#                  small model misclassifies; each sample is a full LLM call.
+#     Default:     1 (single call, no voting)
+OllamaChat.BotCommandIntentSamples = 1
 
 # --------------------------------------------
 # RP PERSONALITIES SYSTEM
